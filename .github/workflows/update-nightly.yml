@@ -1,0 +1,72 @@
+name: Update nightly
+
+on:
+  schedule:
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-nightly
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v20
+      - name: Update sources
+        env:
+          MAX_ATTEMPTS: 6
+          RETRY_DELAY_SECONDS: 600
+        run: bash scripts/update.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updated-flake
+          path: flake.nix
+
+  build:
+    needs: update
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            system: x86_64-linux
+          - os: macos-15
+            system: aarch64-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: updated-flake
+      - uses: DeterminateSystems/nix-installer-action@v20
+      - name: Verify runner architecture
+        run: test "$(nix eval --impure --raw --expr builtins.currentSystem)" = "${{ matrix.system }}"
+      - run: nix build --print-build-logs
+      - name: Verify macOS signature
+        if: runner.os == 'macOS'
+        run: codesign --verify --deep --strict "result/Applications/Camunda Modeler.app"
+
+  commit:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: updated-flake
+      - name: Commit update
+        run: |
+          git diff --quiet -- flake.nix && exit 0
+          version="$(sed -nE 's/^      version = "([^"]+)";/\1/p' flake.nix)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          git commit -m "chore: update Camunda Modeler nightly to ${version}"
+          git push
