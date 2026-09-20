@@ -6,15 +6,15 @@
   outputs =
     { nixpkgs, ... }:
     let
-      version = "5.51.1-nightly.2026-09-19";
+      version = "5.51.1-nightly.2026-09-20";
       sources = {
         x86_64-linux = {
           url = "https://downloads.camunda.cloud/release/camunda-modeler/nightly/camunda-modeler-nightly-linux-x64.tar.gz";
-          hash = "sha256-D2afjcfoIQCZhRzNEAmFkzroPHsf034gLuWdfqnbBKY=";
+          hash = "sha256-4ohUboSqfu0r8oV8UcdQWKjVZgtger+MEvLTF+/VfZk=";
         };
         aarch64-darwin = {
           url = "https://downloads.camunda.cloud/release/camunda-modeler/nightly/camunda-modeler-nightly-mac-arm64.dmg";
-          hash = "sha256-p6avgxuy30dpMWs2jtZg8vX5n9M4aZQOoi6RwUZPKK0=";
+          hash = "sha256-fwoz5rCxjjX4aO/15ZUn7d0lRU8FjgYAGMXBlOxzPKs=";
         };
       };
       forAllSystems = nixpkgs.lib.genAttrs (builtins.attrNames sources);
