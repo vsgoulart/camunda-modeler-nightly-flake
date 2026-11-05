@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "0 19 * * *"
   workflow_dispatch:
+    inputs:
+      nightly_date:
+        description: "Require artifacts published on this date (YYYY-MM-DD); empty accepts anything newer than the pinned nightly"
+        required: false
 
 concurrency:
   group: update-nightly
@@ -22,6 +26,7 @@ jobs:
         env:
           MAX_ATTEMPTS: 6
           RETRY_DELAY_SECONDS: 600
+          NIGHTLY_DATE: ${{ inputs.nightly_date }}
         run: bash scripts/update.sh
       - uses: actions/upload-artifact@v4
         with:

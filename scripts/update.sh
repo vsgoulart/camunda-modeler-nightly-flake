@@ -2,8 +2,6 @@
 set -euo pipefail
 
 flake=flake.nix
-date="${NIGHTLY_DATE:-$(date -u +%F)}"
-http_date="$(perl -MTime::Piece -e 'print Time::Piece->strptime(shift, "%Y-%m-%d")->strftime("%d %b %Y")' "$date")"
 attempts="${MAX_ATTEMPTS:-1}"
 delay="${RETRY_DELAY_SECONDS:-600}"
 base_url=https://downloads.camunda.cloud/release/camunda-modeler/nightly
@@ -12,16 +10,33 @@ darwin=camunda-modeler-nightly-mac-arm64.dmg
 
 [[ -f "$flake" ]] || { echo "Run from the repository root." >&2; exit 1; }
 
-for ((attempt = 1; attempt <= attempts; attempt++)); do
-  current=true
-  for artifact in "$linux" "$darwin"; do
-    modified="$(curl -fsSIL "$base_url/$artifact" | sed -nE 's/^[Ll]ast-[Mm]odified: (.*)\r$/\1/p' | tail -n 1)"
-    [[ "$modified" == *"$http_date"* ]] || current=false
-  done
+pinned_date="$(sed -nE 's/^ *version = "[^"]*-nightly\.([0-9]{4}-[0-9]{2}-[0-9]{2})";/\1/p' "$flake")"
+[[ -n "$pinned_date" ]] || { echo "Could not read pinned nightly date from $flake." >&2; exit 1; }
 
-  $current && break
-  ((attempt < attempts)) || { echo "Not all nightly artifacts were published on $date." >&2; exit 1; }
-  echo "Nightly artifacts are not current; retrying in $delay seconds."
+publish_date() {
+  local modified
+  modified="$(curl -fsSIL "$base_url/$1" | sed -nE 's/^[Ll]ast-[Mm]odified: (.*)\r$/\1/p' | tail -n 1)"
+  [[ -n "$modified" ]] || { echo "No Last-Modified header for $1." >&2; return 1; }
+  perl -MTime::Piece -e 'print Time::Piece->strptime(shift, "%a, %d %b %Y %H:%M:%S GMT")->strftime("%Y-%m-%d")' "$modified"
+}
+
+for ((attempt = 1; attempt <= attempts; attempt++)); do
+  linux_date="$(publish_date "$linux")"
+  darwin_date="$(publish_date "$darwin")"
+  date="$linux_date"
+  [[ "$darwin_date" > "$date" ]] && date="$darwin_date"
+
+  if [[ -n "${NIGHTLY_DATE:-}" ]]; then
+    [[ "$linux_date" == "$NIGHTLY_DATE" && "$darwin_date" == "$NIGHTLY_DATE" ]] && break
+    reason="expected $NIGHTLY_DATE"
+  else
+    [[ "$linux_date" > "$pinned_date" && "$darwin_date" > "$pinned_date" ]] && break
+    reason="need both newer than pinned $pinned_date"
+  fi
+
+  echo "Nightly artifacts are not current (linux $linux_date, darwin $darwin_date; $reason)."
+  ((attempt < attempts)) || exit 1
+  echo "Retrying in $delay seconds."
   sleep "$delay"
 done
 
