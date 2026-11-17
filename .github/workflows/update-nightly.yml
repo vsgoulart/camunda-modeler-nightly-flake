@@ -40,7 +40,7 @@ jobs:
         include:
           - os: ubuntu-latest
             system: x86_64-linux
-          - os: macos-15
+          - os: macos-latest
             system: aarch64-darwin
     runs-on: ${{ matrix.os }}
     steps:
