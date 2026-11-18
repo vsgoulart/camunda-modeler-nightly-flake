@@ -10,11 +10,11 @@
       sources = {
         x86_64-linux = {
           url = "https://downloads.camunda.cloud/release/camunda-modeler/nightly/camunda-modeler-nightly-linux-x64.tar.gz";
-          hash = "sha256-N5SCUv9mnqxMLRlVQ0rCfpo8pgQyq2GpL7IF9pe1+PA=";
+          hash = "sha256-pqPiyIdrXEdxElQVilfqVpW96rBeaIiWYdlGuX8fIBw=";
         };
         aarch64-darwin = {
           url = "https://downloads.camunda.cloud/release/camunda-modeler/nightly/camunda-modeler-nightly-mac-arm64.dmg";
-          hash = "sha256-6jynPEHOa4mwFf6ApE+wZLVt8aF8NJV5VYM2AINuj/w=";
+          hash = "sha256-gGFtaHEcvtbbWfg2z8MOH4eDw3BAhuOsoa4RubLdZfw=";
         };
       };
       forAllSystems = nixpkgs.lib.genAttrs (builtins.attrNames sources);
