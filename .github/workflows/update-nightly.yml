@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       nightly_date:
-        description: "Require artifacts published on this date (YYYY-MM-DD); empty accepts anything newer than the pinned nightly"
+        description: "Require artifacts published on this date (YYYY-MM-DD); empty accepts any build that differs from the pinned one"
         required: false
 
 concurrency:

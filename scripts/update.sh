@@ -20,6 +20,16 @@ publish_date() {
   perl -MTime::Piece -e 'print Time::Piece->strptime(shift, "%a, %d %b %Y %H:%M:%S GMT")->strftime("%Y-%m-%d")' "$modified"
 }
 
+pinned_hash() {
+  FILE="$1" perl -0ne 'print $1 if /\Q$ENV{FILE}\E";\n\s+hash = "([^"]+)";/' "$flake"
+}
+
+pinned_linux_hash="$(pinned_hash "$linux")"
+pinned_darwin_hash="$(pinned_hash "$darwin")"
+[[ -n "$pinned_linux_hash" && -n "$pinned_darwin_hash" ]] || { echo "Could not read pinned hashes from $flake." >&2; exit 1; }
+
+# Camunda can republish on the same day as the pinned nightly, so dates alone
+# cannot tell a new build apart; the hashes decide.
 for ((attempt = 1; attempt <= attempts; attempt++)); do
   linux_date="$(publish_date "$linux")"
   darwin_date="$(publish_date "$darwin")"
@@ -27,11 +37,24 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
   [[ "$darwin_date" > "$date" ]] && date="$darwin_date"
 
   if [[ -n "${NIGHTLY_DATE:-}" ]]; then
-    [[ "$linux_date" == "$NIGHTLY_DATE" && "$darwin_date" == "$NIGHTLY_DATE" ]] && break
+    dates_ok=false
+    [[ "$linux_date" == "$NIGHTLY_DATE" && "$darwin_date" == "$NIGHTLY_DATE" ]] && dates_ok=true
     reason="expected $NIGHTLY_DATE"
   else
-    [[ "$linux_date" > "$pinned_date" && "$darwin_date" > "$pinned_date" ]] && break
-    reason="need both newer than pinned $pinned_date"
+    dates_ok=true
+    [[ "$linux_date" < "$pinned_date" || "$darwin_date" < "$pinned_date" ]] && dates_ok=false
+    reason="need both on or after pinned $pinned_date"
+  fi
+
+  if [[ "$dates_ok" == true ]]; then
+    linux_prefetch="$(nix store prefetch-file --json "$base_url/$linux")"
+    linux_hash="$(jq -r .hash <<<"$linux_prefetch")"
+    linux_path="$(jq -r .storePath <<<"$linux_prefetch")"
+    darwin_hash="$(nix store prefetch-file --json "$base_url/$darwin" | jq -r .hash)"
+
+    [[ -n "${NIGHTLY_DATE:-}" ]] && break
+    [[ "$linux_hash" != "$pinned_linux_hash" && "$darwin_hash" != "$pinned_darwin_hash" ]] && break
+    reason="need both to differ from the pinned hashes"
   fi
 
   echo "Nightly artifacts are not current (linux $linux_date, darwin $darwin_date; $reason)."
@@ -40,10 +63,6 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
   sleep "$delay"
 done
 
-linux_prefetch="$(nix store prefetch-file --json "$base_url/$linux")"
-linux_hash="$(jq -r .hash <<<"$linux_prefetch")"
-linux_path="$(jq -r .storePath <<<"$linux_prefetch")"
-darwin_hash="$(nix store prefetch-file --json "$base_url/$darwin" | jq -r .hash)"
 upstream_version="$(tar -xOf "$linux_path" camunda-modeler-nightly-linux-x64/VERSION)"
 base_version="$(sed -nE 's/^v([^ ]+).*/\1/p' <<<"$upstream_version")"
 [[ -n "$base_version" ]] || { echo "Could not parse version: $upstream_version" >&2; exit 1; }

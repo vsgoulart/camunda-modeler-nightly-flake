@@ -20,8 +20,9 @@ The package supports `x86_64-linux` and Apple Silicon (`aarch64-darwin`).
 ## Updates
 
 Camunda starts its nightly build at 18:00 UTC. The update workflow runs daily
-at 19:00 UTC and waits until both artifacts are newer than the pinned nightly,
-so a late-starting run still picks up the previous evening's build. The version
+at 19:00 UTC and waits until both artifacts differ from the pinned hashes, so a
+late-starting run still picks up the previous evening's build and a same-day
+republish is not mistaken for the pinned one. The version
 date comes from the artifacts' `Last-Modified` header, not the run's clock. It
 then updates the fixed-output hashes and version, builds the package, and
 commits the result. Both the Linux archive and macOS arm64 DMG must build
